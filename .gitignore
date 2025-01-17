@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+2024*
+*Rproj
+
+.DS_Store
+rsconnect
+analysis_*

@@ -1,0 +1,90 @@
+---
+title: "Citibike"
+author: "David Kane"
+format: html
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+```{r}
+#| cache: true
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(leaflet)
+
+x <- read_csv("202412-citibike-tripdata/202412-citibike-tripdata_1.csv")
+```
+
+
+```{r}
+clean_trips <- x %>%
+  mutate(
+    # Calculate trip duration in minutes
+    trip_duration = as.numeric(difftime(ended_at, started_at, units = "mins")),
+    
+    # Extract time components
+    start_hour = hour(started_at),
+    start_day = wday(started_at, label = TRUE),
+    start_month = month(started_at, label = TRUE),
+    
+    # Create time of day category
+    time_of_day = case_when(
+      start_hour >= 5 & start_hour < 12 ~ "Morning",
+      start_hour >= 12 & start_hour < 17 ~ "Afternoon",
+      start_hour >= 17 & start_hour < 22 ~ "Evening",
+      TRUE ~ "Night"
+    )
+  ) %>%
+  # Filter out unrealistic trips
+  filter(
+    trip_duration >= 1,
+    trip_duration <= 180  # 3 hours max
+  )
+```
+
+```{r}
+usage_summary <- clean_trips |> 
+  summarise(
+    total_rides = n(),
+    avg_duration = mean(trip_duration),
+    median_duration = median(trip_duration),
+    .by = member_casual
+  )
+
+```
+
+```{r}
+popular_stations <- clean_trips %>%
+  group_by(start_station_name, start_station_id, start_lat, start_lng) %>%
+  summarise(
+    total_starts = n(),
+    avg_trip_duration = mean(trip_duration),
+    member_percentage = mean(member_casual == "member") * 100,
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_starts))
+```
+
+```{r}
+leaflet(popular_stations %>% head(50)) %>%  # Top 50 stations
+  addTiles() %>%
+  addCircleMarkers(
+    ~start_lng, ~start_lat,
+    radius = ~sqrt(total_starts)/5,
+    popup = ~paste0(
+      "<b>", start_station_name, "</b><br>",
+      "Total Trips: ", total_starts, "<br>",
+      "Avg Duration: ", round(avg_trip_duration, 1), " min<br>",
+      "Member %: ", round(member_percentage, 1), "%"
+    ),
+    color = "blue",
+    fillOpacity = 0.7
+  )
+```
+
+
+
+
